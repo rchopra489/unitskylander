@@ -710,85 +710,67 @@
 
 <a href="https://chat.whatsapp.com/CDzYCrTxtHcHNUNsjzrmRf" 
    class="whatsapp-float wobble" 
-   target="_blank" 
    aria-label="Join WhatsApp group">
   <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp">
 </a>
 
 <script>
   (function(){
-    // Selector for all whatsapp links (group invites, wa.me, api, etc.)
     var selector = 'a[href*="chat.whatsapp.com"], a[href*="wa.me"], a[href*="api.whatsapp.com"], a[href*="whatsapp.com"]';
+    var debugMode = window.location.search.indexOf('gtm_debug=1') !== -1;
   
     function handleWaClick(e){
       try {
-        var el = e.currentTarget || e.target;
-        // find nearest anchor if clicked inside a child
+        var el = e.target;
         while (el && el.tagName !== 'A') el = el.parentElement;
         if (!el) return;
-  
         var href = el.getAttribute('href') || '';
         if (!href) return;
   
-        // Prevent immediate navigation so GTM can fire tags
         e.preventDefault();
         e.stopPropagation();
   
-        // create an event id for deduplication later (if using CAPI)
         var eventId = 'wa_click_' + Date.now();
-  
-        // push a custom dataLayer event with useful info
         window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          event: 'wa_click',
-          event_id: eventId,
-          wa_url: href,
-          wa_text: (el.innerText || el.getAttribute('aria-label') || '').trim()
-        });
+        window.dataLayer.push({ event: 'wa_click', event_id: eventId, wa_url: href, wa_text: (el.innerText||'').trim() });
+        console.log('[wa handler] pushed dataLayer', { event_id: eventId, wa_url: href });
   
-        // small delay to allow GTM to fire tags (300-800ms)
-        var delay = 500;
-        // If link had target="_blank" open in new tab immediately but still delay closing current
-        if (el.target && el.target.toLowerCase() === '_blank') {
-          setTimeout(function(){
-            window.open(href, '_blank');
-          }, 50);
-          // still close current page after delay if needed
-          setTimeout(function(){ window.location.href = href; }, delay);
+        var delay = 600;
+  
+        if (debugMode) {
+          // In debug mode -> open in new tab and keep current page (so GTM preview remains connected)
+          window.open(href, '_blank');
+          // do not navigate away; optionally still close after a small delay: comment out next line to remain on page
+          // setTimeout(function(){ window.location.href = href; }, delay*2);
         } else {
-          setTimeout(function(){
-            window.location.href = href;
-          }, delay);
+          // production behavior -> delay then navigate current window
+          if (el.target && el.target.toLowerCase() === '_blank') {
+            setTimeout(function(){ window.open(href, '_blank'); }, 50);
+            setTimeout(function(){ window.location.href = href; }, delay);
+          } else {
+            setTimeout(function(){ window.location.href = href; }, delay);
+          }
         }
-  
-      } catch (err) {
-        // fallback: if any error, follow the link normally
-        console.error('wa click handler error', err);
+      } catch(err){
+        console.error('[wa handler] error', err);
         var href = (e.currentTarget && e.currentTarget.href) || null;
         if (href) window.location.href = href;
       }
     }
   
-    // Attach listeners to existing and future links (delegation)
     function attachListeners(){
       document.querySelectorAll(selector).forEach(function(a){
-        // avoid duplicate listeners
         if (!a.__wa_listener_attached) {
           a.addEventListener('click', handleWaClick, true);
           a.__wa_listener_attached = true;
         }
       });
     }
-  
-    // initial attach
     attachListeners();
-  
-    // observe DOM changes (in case buttons are added later)
-    var obs = new MutationObserver(function(){ attachListeners(); });
-    obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
-  
+    new MutationObserver(attachListeners).observe(document.documentElement || document.body, { childList: true, subtree: true });
   })();
   </script>
+  
   
 </body>
 </html>
